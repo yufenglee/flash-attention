@@ -7,6 +7,7 @@
 #include <torch/nn/functional.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
+#include <iostream>
 
 #include <cutlass/numeric_types.h>
 
@@ -1049,6 +1050,8 @@ mha_fwd_kvcache(at::Tensor &q,                 // batch_size x seqlen_q x num_he
     TORCH_CHECK(batch_size > 0, "batch size must be postive");
     TORCH_CHECK(head_size_og <= 256, "FlashAttention forward only supports head dimension at most 256");
     TORCH_CHECK(num_heads % num_heads_k == 0, "Number of heads in key/value must divide number of heads in query");
+
+    std::cout<<"BSNH stride in flash_api.cpp:("<<kcache.stride(0)<<","<<kcache.stride(1)<<","<<kcache.stride(2)<<","<<kcache.stride(3)<<")"<<std::endl;
 
     if (seqlen_q == 1) { is_causal = false; }  // causal=true is the same as causal=false in this case
 

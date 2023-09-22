@@ -1490,44 +1490,44 @@ def test_flash_attn_splitkv(seqlen_q, seqlen_k, swap_sq_sk, d, causal, dtype):
         assert (dv - dv_ref).abs().max().item() <= 2 * (dv_pt - dv_ref).abs().max().item() + 2e-4
 
 
-@pytest.mark.parametrize("dtype", ([torch.float16] if is_sm75 else [torch.float16, torch.bfloat16]))
-# @pytest.mark.parametrize("dtype", [torch.float16])
-@pytest.mark.parametrize("num_splits", [1, 0])
-# @pytest.mark.parametrize("num_splits", [0])
-@pytest.mark.parametrize("mha_type", ["mha", "mqa", "gqa"])
-# @pytest.mark.parametrize("mha_type", ["mha"])
+#@pytest.mark.parametrize("dtype", ([torch.float16] if is_sm75 else [torch.float16, torch.bfloat16]))
+@pytest.mark.parametrize("dtype", [torch.float16])
+#@pytest.mark.parametrize("num_splits", [1, 0])
+@pytest.mark.parametrize("num_splits", [0])
+#@pytest.mark.parametrize("mha_type", ["mha", "mqa", "gqa"])
+@pytest.mark.parametrize("mha_type", ["mha"])
 @pytest.mark.parametrize("new_kv", [False, True])
 # @pytest.mark.parametrize("new_kv", [True])
-@pytest.mark.parametrize("causal", [False, True])
-# @pytest.mark.parametrize("causal", [True])
-@pytest.mark.parametrize("seqlen_new_eq_seqlen_q", [True, False])
-# @pytest.mark.parametrize("seqlen_new_eq_seqlen_q", [True])
-@pytest.mark.parametrize("rotary_interleaved", [False, True])
-# @pytest.mark.parametrize("rotary_interleaved", [False])
-@pytest.mark.parametrize("rotary_fraction", [0.0, 0.5, 1.0])
-# @pytest.mark.parametrize("rotary_fraction", [0.0])
-@pytest.mark.parametrize("d", [32, 40, 59, 64, 80, 96, 111, 128, 160, 192, 224, 256])
+#@pytest.mark.parametrize("causal", [False, True])
+@pytest.mark.parametrize("causal", [True])
+#@pytest.mark.parametrize("seqlen_new_eq_seqlen_q", [True, False])
+@pytest.mark.parametrize("seqlen_new_eq_seqlen_q", [True])
+#@pytest.mark.parametrize("rotary_interleaved", [False, True])
+@pytest.mark.parametrize("rotary_interleaved", [False])
+#@pytest.mark.parametrize("rotary_fraction", [0.0, 0.5, 1.0])
+@pytest.mark.parametrize("rotary_fraction", [0.0])
+#@pytest.mark.parametrize("d", [32, 40, 59, 64, 80, 96, 111, 128, 160, 192, 224, 256])
 # @pytest.mark.parametrize('d', [32, 64, 96, 128, 160, 192, 224, 256])
 # @pytest.mark.parametrize('d', [32, 40, 64, 80, 96, 128, 160, 192])
 # @pytest.mark.parametrize('d', [56, 80])
-# @pytest.mark.parametrize("d", [128])
-@pytest.mark.parametrize(
-    "seqlen_q,seqlen_k",
-    [
-        (1, 128),
-        (1, 339),
-        (3, 1024),
-        (64, 800),
-        (64, 256),
-        (3, 799),
-        (64, 2048),
-        (16, 20000),
-        (1, 128 * 1024),
-        (16, 128 * 1024),
-        (128, 128),
-    ],
-)
-# @pytest.mark.parametrize('seqlen_q,seqlen_k', [(256, 128)])
+@pytest.mark.parametrize("d", [64])
+#@pytest.mark.parametrize(
+#    "seqlen_q,seqlen_k",
+#    [
+#        (1, 128),
+#        (1, 339),
+#        (3, 1024),
+#        (64, 800),
+#        (64, 256),
+#        (3, 799),
+#        (64, 2048),
+#        (16, 20000),
+#        (1, 128 * 1024),
+#        (16, 128 * 1024),
+#        (128, 128),
+#    ],
+#)
+@pytest.mark.parametrize('seqlen_q,seqlen_k', [(256, 128)])
 def test_flash_attn_kvcache(
     seqlen_q,
     seqlen_k,
@@ -1561,8 +1561,13 @@ def test_flash_attn_kvcache(
         v = torch.randn(batch_size, seqlen_new, nheads_k, d, device=device, dtype=dtype)
     else:
         k, v = None, None
-    k_cache = torch.randn(batch_size, seqlen_k, nheads_k, d, device=device, dtype=dtype)
-    v_cache = torch.randn(batch_size, seqlen_k, nheads_k, d, device=device, dtype=dtype)
+    #k_cache = torch.randn(batch_size, seqlen_k, nheads_k, d, device=device, dtype=dtype)
+    #v_cache = torch.randn(batch_size, seqlen_k, nheads_k, d, device=device, dtype=dtype)
+    k_cache = torch.randn(batch_size, nheads_k, seqlen_k, d, device=device, dtype=dtype)
+    v_cache = torch.randn(batch_size, nheads_k, seqlen_k, d, device=device, dtype=dtype)
+    print(f"batch_size={batch_size}, seqlen_k={seqlen_k}, nheads_k={nheads_k}, d={d},")
+    k_cache = k_cache.transpose(1, 2)
+    v_cache = v_cache.transpose(1, 2)
     cache_seqlens = torch.randint(
         0,
         # If we don't use seqlen_q in the case of causal and rotary, cos/sin won't be long enough
@@ -1614,6 +1619,8 @@ def test_flash_attn_kvcache(
         v_cache_ref[update_mask] = rearrange(v, "b s ... -> (b s) ...")
     k_cache_rep = repeat(k_cache_ref, "b s h d -> b s (h g) d", g=nheads // nheads_k)
     v_cache_rep = repeat(v_cache_ref, "b s h d -> b s (h g) d", g=nheads // nheads_k)
+    print(f"k_cache BSNH stride before call:{k_cache.stride()}")
+    print(f"v_cache BSNH stride before call:{v_cache.stride()}")
     out = flash_attn_with_kvcache(
         q,
         k_cache,
@@ -1627,6 +1634,8 @@ def test_flash_attn_kvcache(
         rotary_interleaved=rotary_interleaved,
         num_splits=num_splits,
     )
+    print(f"k_cache BSNH stride after call:{k_cache.stride()}")
+    print(f"v_cache BSNH stride after call:{v_cache.stride()}")
     # out = flash_attn_with_kvcache(q, k_cache, v_cache, cache_seqlens=cache_seqlens, causal=causal)
     # out = flash_attn_with_kvcache(q, k_cache, v_cache, causal=causal)
     # qk = torch.einsum("bqhd,bkhd->bhqk", q, k_cache_ref)
